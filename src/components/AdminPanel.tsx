@@ -1,11 +1,11 @@
 import { useState, useEffect } from "react";
 import { motion } from "motion/react";
-import { Plus, Trash2, Save, LayoutGrid, Package, Clock, CheckCircle, Truck, User as UserIcon, Smartphone } from "lucide-react";
+import { Plus, Trash2, Save, LayoutGrid, Package, Clock, CheckCircle, Truck, User as UserIcon, Smartphone, CreditCard } from "lucide-react";
 import { PRODUCTS } from "../constants";
 import { Product } from "../types";
 import { toast } from "sonner";
 import { useStore } from "../StoreContext";
-import { db, collection, onSnapshot, query, orderBy, handleFirestoreError, OperationType, deleteDoc, doc, addDoc } from "../firebase";
+import { db, collection, onSnapshot, query, orderBy, handleFirestoreError, OperationType, deleteDoc, doc, addDoc, updateDoc } from "../firebase";
 import { cn } from "../lib/utils";
 
 export default function AdminPanel() {
@@ -67,6 +67,7 @@ export default function AdminPanel() {
       await addDoc(collection(db, "products"), {
         ...newProduct,
         isFeatured: true,
+        isSold: false,
         createdAt: new Date().toISOString()
       });
       setNewProduct({
@@ -90,6 +91,17 @@ export default function AdminPanel() {
       toast.success("Artwork removed from store");
     } catch (err) {
       handleFirestoreError(err, OperationType.DELETE, `products/${productId}`);
+    }
+  };
+
+  const toggleSoldStatus = async (product: Product) => {
+    try {
+      await updateDoc(doc(db, "products", product.id), {
+        isSold: !product.isSold
+      });
+      toast.success(`Artwork marked as ${!product.isSold ? "Sold" : "Available"}`);
+    } catch (err) {
+      handleFirestoreError(err, OperationType.UPDATE, `products/${product.id}`);
     }
   };
 
@@ -182,17 +194,38 @@ export default function AdminPanel() {
             <div className="lg:col-span-2 flex flex-col gap-4">
               {products.map((product) => (
                 <div key={product.id} className="glass p-4 rounded-xl flex items-center gap-6">
-                  <img src={product.image} className="w-16 h-16 rounded-lg object-cover" />
+                  <img 
+                    src={product.image} 
+                    className={cn(
+                      "w-16 h-16 rounded-lg object-cover",
+                      product.isSold && "grayscale opacity-50"
+                    )} 
+                    loading="lazy"
+                    referrerPolicy="no-referrer"
+                  />
                   <div className="flex-1">
                     <h4 className="font-serif font-bold">{product.title}</h4>
-                    <p className="text-xs text-brand-beige/40 uppercase tracking-widest">${product.price} • {product.category}</p>
+                    <p className="text-xs text-brand-beige/40 uppercase tracking-widest">
+                      ${product.price} • {product.category} • {product.isSold ? <span className="text-red-400">Sold</span> : <span className="text-green-400">Available</span>}
+                    </p>
                   </div>
-                  <button 
-                    onClick={() => handleDelete(product.id)}
-                    className="p-2 text-brand-beige/20 hover:text-red-400 transition-colors"
-                  >
-                    <Trash2 size={18} />
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => toggleSoldStatus(product)}
+                      className={cn(
+                        "px-3 py-1 rounded-full text-[10px] uppercase tracking-widest font-bold transition-all",
+                        product.isSold ? "bg-green-400/10 text-green-400 hover:bg-green-400/20" : "bg-red-400/10 text-red-400 hover:bg-red-400/20"
+                      )}
+                    >
+                      {product.isSold ? "Mark Available" : "Mark Sold"}
+                    </button>
+                    <button 
+                      onClick={() => handleDelete(product.id)}
+                      className="p-2 text-brand-beige/20 hover:text-red-400 transition-colors"
+                    >
+                      <Trash2 size={18} />
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>
@@ -236,7 +269,13 @@ export default function AdminPanel() {
 
                       <div className="flex items-center gap-6 pt-6 border-t border-brand-beige/5">
                         <div className="flex items-center gap-2">
-                          {order.paymentMethod === "UPI" ? <Smartphone size={16} className="text-brand-gold" /> : <Truck size={16} className="text-brand-gold" />}
+                          {order.paymentMethod === "UPI" ? (
+                            <Smartphone size={16} className="text-brand-gold" />
+                          ) : order.paymentMethod === "Razorpay" ? (
+                            <CreditCard size={16} className="text-brand-gold" />
+                          ) : (
+                            <Truck size={16} className="text-brand-gold" />
+                          )}
                           <span className="text-xs uppercase tracking-widest font-bold">{order.paymentMethod}</span>
                         </div>
                         <div className="text-xl font-serif font-bold text-brand-gold">Total: ${order.total}</div>
@@ -247,7 +286,12 @@ export default function AdminPanel() {
                       <p className="text-[10px] uppercase tracking-widest text-brand-beige/40 mb-2">Order Items</p>
                       {order.items.map((item: any, i: number) => (
                         <div key={i} className="flex items-center gap-3 p-2 bg-brand-beige/5 rounded-lg">
-                          <img src={item.image} className="w-10 h-10 rounded object-cover" />
+                          <img 
+                            src={item.image} 
+                            className="w-10 h-10 rounded object-cover" 
+                            loading="lazy"
+                            referrerPolicy="no-referrer"
+                          />
                           <div className="flex-1">
                             <p className="text-xs font-bold truncate">{item.title}</p>
                             <p className="text-[10px] text-brand-beige/40">Qty: {item.quantity}</p>

@@ -39,13 +39,24 @@ export default function ProductModal({ product, onClose }: ProductModalProps) {
             <X size={20} />
           </button>
 
-          <div className="w-full md:w-1/2 aspect-square md:aspect-auto">
+          <div className="w-full md:w-1/2 aspect-square md:aspect-auto relative">
             <img
               src={product.image}
               alt={product.title}
-              className="w-full h-full object-cover"
+              className={cn(
+                "w-full h-full object-cover",
+                product.isSold && "grayscale opacity-50"
+              )}
               referrerPolicy="no-referrer"
+              loading="lazy"
             />
+            {product.isSold && (
+              <div className="absolute inset-0 flex items-center justify-center bg-brand-black/40">
+                <span className="px-8 py-3 bg-brand-black text-brand-gold border border-brand-gold text-xs uppercase tracking-widest font-bold">
+                  Sold Out
+                </span>
+              </div>
+            )}
           </div>
 
           <div className="w-full md:w-1/2 p-8 md:p-12 flex flex-col gap-8">
@@ -54,7 +65,14 @@ export default function ProductModal({ product, onClose }: ProductModalProps) {
                 {product.category}
               </span>
               <h2 className="text-4xl font-serif font-bold mb-4">{product.title}</h2>
-              <p className="text-2xl text-brand-gold font-medium">${product.price}</p>
+              <div className="flex items-center gap-4">
+                <p className="text-2xl text-brand-gold font-medium">${product.price}</p>
+                {!product.isSold && (
+                  <span className="px-3 py-1 bg-brand-gold/10 text-brand-gold text-[10px] uppercase tracking-widest font-bold rounded-full">
+                    Only 1 piece available
+                  </span>
+                )}
+              </div>
             </div>
 
             <p className="text-brand-beige/70 font-light leading-relaxed">
@@ -86,9 +104,15 @@ export default function ProductModal({ product, onClose }: ProductModalProps) {
               <div className="flex gap-4">
                 <button
                   onClick={() => addToCart(product)}
-                  className="flex-1 py-4 bg-brand-gold text-brand-black font-bold uppercase tracking-widest flex items-center justify-center gap-3 hover:scale-[1.02] transition-all duration-300 gold-glow"
+                  disabled={product.isSold}
+                  className={cn(
+                    "flex-1 py-4 font-bold uppercase tracking-widest flex items-center justify-center gap-3 transition-all duration-300",
+                    product.isSold 
+                      ? "bg-brand-beige/10 text-brand-beige/30 cursor-not-allowed" 
+                      : "bg-brand-gold text-brand-black hover:scale-[1.02] gold-glow"
+                  )}
                 >
-                  <ShoppingBag size={20} /> Add to Cart
+                  <ShoppingBag size={20} /> {product.isSold ? "Sold Out" : "Add to Cart"}
                 </button>
                 <button
                   onClick={() => toggleWishlist(product)}

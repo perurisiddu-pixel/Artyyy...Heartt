@@ -1,5 +1,5 @@
 import { initializeApp } from "firebase/app";
-import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged, User } from "firebase/auth";
+import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged, User, setPersistence, browserLocalPersistence } from "firebase/auth";
 import { 
   getFirestore, 
   collection, 
@@ -78,6 +78,8 @@ export {
   signInWithPopup, 
   signOut, 
   onAuthStateChanged, 
+  setPersistence,
+  browserLocalPersistence,
   collection, 
   doc, 
   setDoc, 

@@ -27,7 +27,12 @@ export default function Collection({ onQuickView }: CollectionProps) {
   }, []);
 
   const displayProducts = products.length > 0 ? products : PRODUCTS;
-  const featuredProducts = displayProducts.filter(p => p.isFeatured);
+  const sortedProducts = [...displayProducts].sort((a, b) => {
+    if (a.isSold && !b.isSold) return 1;
+    if (!a.isSold && b.isSold) return -1;
+    return 0;
+  });
+  const featuredProducts = sortedProducts.filter(p => p.isFeatured);
 
   return (
     <section id="collection" className="py-24 px-6 bg-brand-black">

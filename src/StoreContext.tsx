@@ -16,9 +16,13 @@ import {
   addDoc, 
   deleteDoc, 
   updateDoc, 
+  getDoc,
+  setDoc,
   doc, 
   handleFirestoreError, 
-  OperationType 
+  OperationType,
+  setPersistence,
+  browserLocalPersistence
 } from "./firebase";
 
 interface StoreContextType {
@@ -50,11 +54,31 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     return saved ? JSON.parse(saved) : [];
   });
 
-  // Auth Listener
+  // Auth Listener & User Document Sync
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       setUser(currentUser);
       setIsAuthReady(true);
+
+      if (currentUser) {
+        // Ensure user document exists in Firestore
+        const userRef = doc(db, "users", currentUser.uid);
+        try {
+          const userDoc = await getDoc(userRef);
+          if (!userDoc.exists()) {
+            await setDoc(userRef, {
+              uid: currentUser.uid,
+              email: currentUser.email,
+              displayName: currentUser.displayName,
+              photoURL: currentUser.photoURL,
+              role: currentUser.email === "perurisiddu@gmail.com" ? "admin" : "user",
+              createdAt: new Date().toISOString()
+            });
+          }
+        } catch (error) {
+          console.error("Error syncing user document:", error);
+        }
+      }
     });
     return () => unsubscribe();
   }, []);
@@ -89,11 +113,23 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
   const login = async () => {
     try {
-      await signInWithPopup(auth, googleProvider);
-      toast.success("Successfully logged in");
-    } catch (error) {
+      await setPersistence(auth, browserLocalPersistence);
+      googleProvider.setCustomParameters({ prompt: 'select_account' });
+      const result = await signInWithPopup(auth, googleProvider);
+      if (result.user) {
+        toast.success("Successfully logged in");
+      }
+    } catch (error: any) {
       console.error("Login failed:", error);
-      toast.error("Login failed. Please try again.");
+      if (error.code === 'auth/popup-blocked') {
+        toast.error("Login popup was blocked. Please allow popups in your browser or try opening the app in a new tab.", {
+          duration: 6000,
+        });
+      } else if (error.code === 'auth/network-request-failed') {
+        toast.error("Network error during login. This may be caused by an ad blocker or strict privacy settings. Please try disabling them or use a different browser.");
+      } else {
+        toast.error(`Login failed: ${error.message || "Please try again."}`);
+      }
     }
   };
 
@@ -115,7 +151,9 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
     const cartPath = `users/${user.uid}/cart`;
     try {
-      const existing = cart.find(item => item.id === product.id);
+      // Check for existing item using productId
+      const existing = cart.find(item => item.productId === product.id);
+      
       if (existing) {
         await updateDoc(doc(db, cartPath, existing.id), {
           quantity: existing.quantity + 1
@@ -125,11 +163,13 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           ...product,
           productId: product.id,
           quantity: 1,
-          userId: user.uid
+          userId: user.uid,
+          addedAt: new Date().toISOString()
         });
       }
       toast.success(`${product.title} added to cart`);
     } catch (error) {
+      console.error("Add to cart failed:", error);
       handleFirestoreError(error, OperationType.WRITE, cartPath);
     }
   };

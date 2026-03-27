@@ -16,6 +16,7 @@ export default function About() {
             alt="The Artist"
             className="w-full h-full object-cover grayscale hover:grayscale-0 transition-all duration-1000"
             referrerPolicy="no-referrer"
+            loading="lazy"
           />
           <div className="absolute -bottom-8 -right-8 w-48 h-48 border border-brand-gold/30 hidden md:block" />
           <div className="absolute -top-8 -left-8 w-32 h-32 bg-brand-gold/10 hidden md:block" />

@@ -7,9 +7,12 @@ export interface Product {
   category: string;
   size: string;
   isFeatured?: boolean;
+  stock?: number;
+  isSold?: boolean;
 }
 
 export interface CartItem extends Product {
+  productId: string;
   quantity: number;
 }
 

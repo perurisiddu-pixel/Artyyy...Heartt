@@ -3,8 +3,9 @@ import { motion, AnimatePresence } from "motion/react";
 import { X, ShoppingBag, Trash2, Plus, Minus, ArrowRight, CreditCard, Truck, Smartphone, CheckCircle2, Loader2 } from "lucide-react";
 import { useStore } from "../StoreContext";
 import { cn } from "../lib/utils";
-import { db, collection, addDoc, handleFirestoreError, OperationType, deleteDoc, getDocs, query, doc } from "../firebase";
+import { db, collection, addDoc, handleFirestoreError, OperationType, deleteDoc, getDocs, query, doc, updateDoc } from "../firebase";
 import { toast } from "sonner";
+import emailjs from "@emailjs/browser";
 
 interface CartDrawerProps {
   isOpen: boolean;
@@ -23,8 +24,103 @@ export default function CartDrawer({ isOpen, onClose }: CartDrawerProps) {
     email: user?.email || "",
     address: "",
     phone: "",
-    paymentMethod: "UPI" as "UPI" | "COD"
+    paymentMethod: "UPI" as "UPI" | "COD" | "Razorpay"
   });
+
+  const sendOrderEmail = async (orderData: any) => {
+    const serviceId = import.meta.env.VITE_EMAILJS_SERVICE_ID;
+    const templateId = import.meta.env.VITE_EMAILJS_TEMPLATE_ID;
+    const publicKey = import.meta.env.VITE_EMAILJS_PUBLIC_KEY;
+
+    if (!serviceId || !templateId || !publicKey) {
+      console.warn("EmailJS is not configured. Skipping email notification.");
+      return;
+    }
+
+    try {
+      const templateParams = {
+        to_email: import.meta.env.VITE_ADMIN_EMAIL || "perurisiddu@gmail.com",
+        from_name: orderData.customerName,
+        from_email: orderData.email,
+        order_id: orderData.id || "N/A",
+        total_amount: orderData.total,
+        items: orderData.items.map((item: any) => `${item.title} (x${item.quantity})`).join(", "),
+        address: orderData.address,
+        phone: orderData.phone,
+        payment_method: orderData.paymentMethod
+      };
+
+      await emailjs.send(serviceId, templateId, templateParams, publicKey);
+      console.log("Order confirmation email sent to admin.");
+    } catch (error) {
+      console.error("Failed to send order email:", error);
+    }
+  };
+
+  const finalizeOrder = async (orderData: any) => {
+    try {
+      const orderRef = await addDoc(collection(db, "orders"), orderData);
+      
+      // Send email notification
+      await sendOrderEmail({ ...orderData, id: orderRef.id });
+
+      // Mark products as sold in Firestore (since they are unique art pieces)
+      const updatePromises = orderData.items.map((item: any) => 
+        updateDoc(doc(db, "products", item.productId), { isSold: true })
+      );
+      await Promise.all(updatePromises);
+      
+      // Clear cart in Firestore
+      const cartPath = `users/${user!.uid}/cart`;
+      const cartSnap = await getDocs(query(collection(db, cartPath)));
+      const deletePromises = cartSnap.docs.map(d => deleteDoc(doc(db, cartPath, d.id)));
+      await Promise.all(deletePromises);
+
+      setStep("success");
+      toast.success("Order placed successfully!");
+    } catch (error) {
+      handleFirestoreError(error, OperationType.WRITE, "orders");
+    }
+  };
+
+  const handleRazorpayPayment = async (orderData: any) => {
+    const razorpayKey = import.meta.env.VITE_RAZORPAY_KEY_ID;
+    
+    if (!razorpayKey) {
+      toast.error("Razorpay Key is not configured. Please check your environment variables.");
+      return;
+    }
+
+    const options = {
+      key: razorpayKey,
+      amount: orderData.total * 100, // Amount in paise
+      currency: "INR",
+      name: "Artyy..Hearttt",
+      description: "Original Handmade Painting",
+      image: "https://picsum.photos/seed/art-logo/200/200",
+      handler: async function (response: any) {
+        setIsProcessing(true);
+        const finalOrderData = {
+          ...orderData,
+          paymentId: response.razorpay_payment_id,
+          status: "paid"
+        };
+        await finalizeOrder(finalOrderData);
+        setIsProcessing(false);
+      },
+      prefill: {
+        name: formData.name,
+        email: formData.email,
+        contact: formData.phone
+      },
+      theme: {
+        color: "#C9A96E"
+      }
+    };
+
+    const rzp = new (window as any).Razorpay(options);
+    rzp.open();
+  };
 
   const handleCheckout = async () => {
     if (!user) {
@@ -48,20 +144,17 @@ export default function CartDrawer({ isOpen, onClose }: CartDrawerProps) {
         paymentMethod: formData.paymentMethod,
         items: cart,
         total: cartTotal,
-        status: "pending",
+        status: formData.paymentMethod === "COD" ? "pending" : "paid",
         createdAt: new Date().toISOString()
       };
 
-      await addDoc(collection(db, "orders"), orderData);
-      
-      // Clear cart in Firestore
-      const cartPath = `users/${user.uid}/cart`;
-      const cartSnap = await getDocs(query(collection(db, cartPath)));
-      const deletePromises = cartSnap.docs.map(d => deleteDoc(doc(db, cartPath, d.id)));
-      await Promise.all(deletePromises);
+      if (formData.paymentMethod === "Razorpay") {
+        await handleRazorpayPayment(orderData);
+        setIsProcessing(false);
+        return;
+      }
 
-      setStep("success");
-      toast.success("Order placed successfully!");
+      await finalizeOrder(orderData);
     } catch (error) {
       handleFirestoreError(error, OperationType.WRITE, "orders");
     } finally {
@@ -130,7 +223,13 @@ export default function CartDrawer({ isOpen, onClose }: CartDrawerProps) {
                     cart.map((item) => (
                       <div key={item.id} className="flex gap-4">
                         <div className="w-20 aspect-square bg-brand-beige/5 overflow-hidden rounded-lg">
-                          <img src={item.image} alt={item.title} className="w-full h-full object-cover" />
+                          <img 
+                            src={item.image} 
+                            alt={item.title} 
+                            className="w-full h-full object-cover" 
+                            loading="lazy"
+                            referrerPolicy="no-referrer"
+                          />
                         </div>
                         <div className="flex-1 flex flex-col justify-between py-1">
                           <div className="flex justify-between items-start">
@@ -228,6 +327,25 @@ export default function CartDrawer({ isOpen, onClose }: CartDrawerProps) {
                       </div>
                     </div>
                     {formData.paymentMethod === "COD" && <CheckCircle2 size={20} className="text-brand-gold" />}
+                  </button>
+
+                  <button
+                    onClick={() => setFormData({...formData, paymentMethod: "Razorpay"})}
+                    className={cn(
+                      "flex items-center justify-between p-6 rounded-xl border transition-all duration-300",
+                      formData.paymentMethod === "Razorpay" ? "border-brand-gold bg-brand-gold/5" : "border-brand-beige/10 hover:border-brand-beige/30"
+                    )}
+                  >
+                    <div className="flex items-center gap-4">
+                      <div className="p-3 bg-brand-gold/10 text-brand-gold rounded-lg">
+                        <CreditCard size={24} />
+                      </div>
+                      <div className="text-left">
+                        <p className="font-serif font-bold">Razorpay</p>
+                        <p className="text-[10px] uppercase tracking-widest text-brand-beige/40">Secure Online Payment</p>
+                      </div>
+                    </div>
+                    {formData.paymentMethod === "Razorpay" && <CheckCircle2 size={20} className="text-brand-gold" />}
                   </button>
                 </div>
               )}

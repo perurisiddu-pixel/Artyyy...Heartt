@@ -25,27 +25,41 @@ export default function ProductCard({ product, onQuickView }: ProductCardProps) 
         <img
           src={product.image}
           alt={product.title}
-          className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
+          className={cn(
+            "w-full h-full object-cover transition-transform duration-700 group-hover:scale-110",
+            product.isSold && "grayscale opacity-50"
+          )}
           referrerPolicy="no-referrer"
+          loading="lazy"
         />
         
         {/* Overlay Actions */}
-        <div className="absolute inset-0 bg-brand-black/40 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center gap-4">
-          <button
-            onClick={() => onQuickView(product)}
-            className="p-3 bg-brand-beige text-brand-black rounded-full hover:bg-brand-gold transition-colors"
-            title="Quick View"
-          >
-            <ZoomIn size={20} />
-          </button>
-          <button
-            onClick={() => addToCart(product)}
-            className="p-3 bg-brand-beige text-brand-black rounded-full hover:bg-brand-gold transition-colors"
-            title="Add to Cart"
-          >
-            <ShoppingBag size={20} />
-          </button>
-        </div>
+        {!product.isSold && (
+          <div className="absolute inset-0 bg-brand-black/40 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center gap-4">
+            <button
+              onClick={() => onQuickView(product)}
+              className="p-3 bg-brand-beige text-brand-black rounded-full hover:bg-brand-gold transition-colors"
+              title="Quick View"
+            >
+              <ZoomIn size={20} />
+            </button>
+            <button
+              onClick={() => addToCart(product)}
+              className="p-3 bg-brand-beige text-brand-black rounded-full hover:bg-brand-gold transition-colors"
+              title="Add to Cart"
+            >
+              <ShoppingBag size={20} />
+            </button>
+          </div>
+        )}
+
+        {product.isSold && (
+          <div className="absolute inset-0 flex items-center justify-center bg-brand-black/40">
+            <span className="px-6 py-2 bg-brand-black text-brand-gold border border-brand-gold text-[10px] uppercase tracking-widest font-bold">
+              Sold Out
+            </span>
+          </div>
+        )}
 
         {/* Wishlist Button */}
         <button
@@ -72,13 +86,24 @@ export default function ProductCard({ product, onQuickView }: ProductCardProps) 
           <span className="text-brand-gold font-medium">${product.price}</span>
         </div>
         <p className="text-xs text-brand-beige/50 uppercase tracking-widest">{product.size}</p>
+        {!product.isSold && (
+          <p className="text-[10px] text-brand-gold uppercase tracking-widest font-medium mt-1">
+            Only 1 piece available
+          </p>
+        )}
       </div>
       
       <button
         onClick={() => addToCart(product)}
-        className="mt-2 w-full py-3 border border-brand-beige/10 text-xs uppercase tracking-widest font-medium hover:bg-brand-gold hover:text-brand-black hover:border-brand-gold transition-all duration-300 flex items-center justify-center gap-2"
+        disabled={product.isSold}
+        className={cn(
+          "mt-2 w-full py-3 border border-brand-beige/10 text-xs uppercase tracking-widest font-medium transition-all duration-300 flex items-center justify-center gap-2",
+          product.isSold 
+            ? "opacity-50 cursor-not-allowed" 
+            : "hover:bg-brand-gold hover:text-brand-black hover:border-brand-gold"
+        )}
       >
-        <Plus size={14} /> Add to Cart
+        {product.isSold ? "Sold Out" : <><Plus size={14} /> Add to Cart</>}
       </button>
     </motion.div>
   );
