@@ -1,0 +1,8 @@
+{
+  "name": "Artyy..Hearttt",
+  "description": "A premium, emotional, and artistic e-commerce platform for handmade paintings and artworks.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ]
+}
