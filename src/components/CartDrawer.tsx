@@ -58,29 +58,25 @@ export default function CartDrawer({ isOpen, onClose }: CartDrawerProps) {
   };
 
   const finalizeOrder = async (orderData: any) => {
-    try {
-      const orderRef = await addDoc(collection(db, "orders"), orderData);
-      
-      // Send email notification
-      await sendOrderEmail({ ...orderData, id: orderRef.id });
+    const orderRef = await addDoc(collection(db, "orders"), orderData);
+    
+    // Send email notification
+    await sendOrderEmail({ ...orderData, id: orderRef.id });
 
-      // Mark products as sold in Firestore (since they are unique art pieces)
-      const updatePromises = orderData.items.map((item: any) => 
-        updateDoc(doc(db, "products", item.productId), { isSold: true })
-      );
-      await Promise.all(updatePromises);
-      
-      // Clear cart in Firestore
-      const cartPath = `users/${user!.uid}/cart`;
-      const cartSnap = await getDocs(query(collection(db, cartPath)));
-      const deletePromises = cartSnap.docs.map(d => deleteDoc(doc(db, cartPath, d.id)));
-      await Promise.all(deletePromises);
+    // Mark products as sold in Firestore (since they are unique art pieces)
+    const updatePromises = orderData.items.map((item: any) => 
+      updateDoc(doc(db, "products", item.productId), { isSold: true })
+    );
+    await Promise.all(updatePromises);
+    
+    // Clear cart in Firestore
+    const cartPath = `users/${user!.uid}/cart`;
+    const cartSnap = await getDocs(query(collection(db, cartPath)));
+    const deletePromises = cartSnap.docs.map(d => deleteDoc(doc(db, cartPath, d.id)));
+    await Promise.all(deletePromises);
 
-      setStep("success");
-      toast.success("Order placed successfully!");
-    } catch (error) {
-      handleFirestoreError(error, OperationType.WRITE, "orders");
-    }
+    setStep("success");
+    toast.success("Order placed successfully!");
   };
 
   const handleRazorpayPayment = async (orderData: any) => {
@@ -100,13 +96,18 @@ export default function CartDrawer({ isOpen, onClose }: CartDrawerProps) {
       image: "https://picsum.photos/seed/art-logo/200/200",
       handler: async function (response: any) {
         setIsProcessing(true);
-        const finalOrderData = {
-          ...orderData,
-          paymentId: response.razorpay_payment_id,
-          status: "paid"
-        };
-        await finalizeOrder(finalOrderData);
-        setIsProcessing(false);
+        try {
+          const finalOrderData = {
+            ...orderData,
+            paymentId: response.razorpay_payment_id,
+            status: "paid"
+          };
+          await finalizeOrder(finalOrderData);
+        } catch (error) {
+          handleFirestoreError(error, OperationType.WRITE, "orders");
+        } finally {
+          setIsProcessing(false);
+        }
       },
       prefill: {
         name: formData.name,
