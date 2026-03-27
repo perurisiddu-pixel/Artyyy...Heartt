@@ -112,23 +112,30 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   }, [wishlist]);
 
   const login = async () => {
+    const toastId = toast.loading("Logging in...");
     try {
       await setPersistence(auth, browserLocalPersistence);
       googleProvider.setCustomParameters({ prompt: 'select_account' });
       const result = await signInWithPopup(auth, googleProvider);
       if (result.user) {
-        toast.success("Successfully logged in");
+        toast.success("Successfully logged in", { id: toastId });
       }
     } catch (error: any) {
       console.error("Login failed:", error);
       if (error.code === 'auth/popup-blocked') {
         toast.error("Login popup was blocked. Please allow popups in your browser or try opening the app in a new tab.", {
+          id: toastId,
           duration: 6000,
         });
       } else if (error.code === 'auth/network-request-failed') {
-        toast.error("Network error during login. This may be caused by an ad blocker or strict privacy settings. Please try disabling them or use a different browser.");
+        toast.error("Network error during login. This may be caused by an ad blocker or strict privacy settings. Please try disabling them or use a different browser.", { id: toastId });
+      } else if (error.code === 'auth/unauthorized-domain') {
+        toast.error("This domain is not authorized for login in Firebase. Please add the current domain to your Firebase Console authorized domains list.", {
+          id: toastId,
+          duration: 10000,
+        });
       } else {
-        toast.error(`Login failed: ${error.message || "Please try again."}`);
+        toast.error(`Login failed: ${error.message || "Please try again."}`, { id: toastId });
       }
     }
   };
